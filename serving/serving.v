@@ -43,9 +43,9 @@ module serving
     input wire sel_radr,
     input wire sel_rdata,
     input wire sel_wen,
+    
     // WISHBONE SIGNALS FOR BRIDGE
     input  wire [3:0] i_sel_brg,
-    //input  wire i_strobe_brg,
     output wire o_ack_brg
    );
 
@@ -84,7 +84,7 @@ module serving
    wire [9:0] wadr;       // Final write address (either external or from interface)
    wire [7:0] wdata_if;    // Write data from interface
    wire [7:0] wdata;       // Final write data (either external or from interface)
-   wire [9:0] radr_if;
+  wire [9:0] radr_if;     // Read address from interface
    wire wen_if;            // Write enable from interface
    wire wen;               // Final write enable
    wire [9:0] radr;
@@ -92,15 +92,15 @@ module serving
    wire [7:0] rdata_din;
    
 
-   assign wadr  = sel_wadr   ? wadr_ext  : wadr_if;
-   assign wdata = sel_wdata  ? wdata_ext : wdata_if;
-   assign radr  = sel_radr   ? radr_ext  : radr_if;
+   assign wadr  = sel_wadr   ? wadr_ext  : wadr_if;    // Write Address Mux
+   assign wdata = sel_wdata  ? wdata_ext : wdata_if;   // Write Data Mux
+   assign radr  = sel_radr   ? radr_ext  : radr_if;    // Read Address Mux
    
+  // Demux for routing Read Data i.e. o_rdata to either:
+   assign rdata_ext    = sel_rdata ? 0 : rdata_din;      // External Read Signal i.e. rdata_ext
+   assign o_rdata_dout = sel_rdata ? rdata_din : 0;      // or Read Signal from Mem-Interface i.e. i_sram_rdata
    
-   assign rdata_ext    = sel_rdata ? 0 : rdata_din;      
-   assign o_rdata_dout = sel_rdata ? rdata_din : 0;
-   
-   assign wen = sel_wen ? wen_ext : wen_if;
+   assign wen = sel_wen ? wen_ext : wen_if;              // Write enable Mux
    
    serving_ram
      #(.memfile (memfile),
