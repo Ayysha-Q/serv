@@ -21,20 +21,38 @@
 module serving_ram
   #(//Memory parameters
     parameter depth = 256,
-    parameter aw    = $clog2(depth),
+    parameter aw    = $clog2(depth),  
     parameter memfile = "")
-   (input wire		i_clk,
+    
+   (input wire		   i_clk,
     input wire [aw-1:0]	i_waddr,
     input wire [7:0]	i_wdata,
-    input wire		i_wen,
+    input wire		    i_wen,
     input wire [aw-1:0]	i_raddr,
-    output reg [7:0]	o_rdata);
+    output reg [7:0]	o_rdata,
+    input wire		    i_ren, 
+    output reg ack,
+    output wire initial_data
+        );
 
    reg [7:0]		mem [0:depth-1] /* verilator public */;
-
+   //reg [7:0]init_data;
    always @(posedge i_clk) begin
-      if (i_wen) mem[i_waddr]   <= i_wdata;
-      o_rdata <= mem[i_raddr];
+      
+      if (i_wen)begin
+       mem[i_waddr]   <= i_wdata;
+        if (mem[i_waddr] == i_wdata)
+        ack <= 1'b1;
+        else
+           ack <= 1'b0;
+       end
+      else  begin
+         o_rdata <= mem[i_raddr];
+         if(o_rdata == mem[i_raddr])
+           ack <= 1'b1;
+          else
+            ack <= 1'b0;
+      end
    end
 
    initial
