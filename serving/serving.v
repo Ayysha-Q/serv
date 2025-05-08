@@ -30,10 +30,27 @@ module serving
    output wire 	      o_wb_we ,
    output wire 	      o_wb_stb,
    input wire [31:0]  i_wb_rdt,
-   input wire 	      i_wb_ack);
+   input wire 	      i_wb_ack,
+   // EXTERNAL READ/WRITE SIGNALS
+   input wire [31:0]  wadr_ext,
+   input wire [31:0]  wdata_ext,
+   input wire [31:0]  radr_ext,
+   output wire [31:0] rdata_ext,
+   input wire wen_ext,
+    // MUX SELECTION
+    input wire sel_wadr,
+    input wire sel_wdata,
+    input wire sel_radr,
+    input wire sel_rdata,
+    input wire sel_wen,
+    // WISHBONE SIGNALS FOR BRIDGE
+    input  wire [3:0] i_sel_brg,
+    //input  wire i_strobe_brg,
+    output wire o_ack_brg
+   );
 
    parameter memfile = "";
-   parameter memsize = 8192;
+   parameter memsize = 1024;
    parameter sim = 1'b0;
    parameter RESET_STRATEGY = "NONE";
    parameter WITH_CSR = 1;
@@ -62,19 +79,42 @@ module serving
    wire [$clog2(memsize)-1:0] sram_raddr;
    wire [rf_width-1:0] sram_rdata;
    wire		       sram_ren;
+   
+   wire [9:0] wadr_if;    // Write address from interface
+   wire [9:0] wadr;       // Final write address (either external or from interface)
+   wire [7:0] wdata_if;    // Write data from interface
+   wire [7:0] wdata;       // Final write data (either external or from interface)
+   wire [9:0] radr_if;
+   wire wen_if;            // Write enable from interface
+   wire wen;               // Final write enable
+   wire [9:0] radr;
+   wire [7:0] o_rdata_dout;
+   wire [7:0] rdata_din;
+   
 
+   assign wadr  = sel_wadr   ? wadr_ext  : wadr_if;
+   assign wdata = sel_wdata  ? wdata_ext : wdata_if;
+   assign radr  = sel_radr   ? radr_ext  : radr_if;
+   
+   
+   assign rdata_ext    = sel_rdata ? 0 : rdata_din;      
+   assign o_rdata_dout = sel_rdata ? rdata_din : 0;
+   
+   assign wen = sel_wen ? wen_ext : wen_if;
+   
    serving_ram
      #(.memfile (memfile),
        .depth   (memsize))
    ram
      (// Wishbone interface
       .i_clk (i_clk),
-      .i_waddr  (sram_waddr),
-      .i_wdata  (sram_wdata),
-      .i_wen    (sram_wen),
-      .i_raddr  (sram_raddr),
-      .o_rdata  (sram_rdata)/*,
-      .i_ren    (rf_ren)*/);
+      .i_waddr  (wadr),
+      .i_wdata  (wdata),
+      .i_wen    (wen),
+      .i_raddr  (radr),
+      .o_rdata  (rdata_din),
+      .i_ren    (rf_ren),
+      .ack      (o_ack_brg));
 
    servile_rf_mem_if
      #(.depth   (memsize),
@@ -91,11 +131,11 @@ module serving
       .o_rdata  (rf_rdata),
       .i_ren    (rf_ren),
 
-      .o_sram_waddr (sram_waddr),
-      .o_sram_wdata (sram_wdata),
-      .o_sram_wen   (sram_wen),
-      .o_sram_raddr (sram_raddr),
-      .i_sram_rdata (sram_rdata),
+      .o_sram_waddr (wadr_if),
+      .o_sram_wdata (wdata_if),
+      .o_sram_wen   (wen_if),
+      .o_sram_raddr (radr_if),
+      .i_sram_rdata (o_rdata_dout),
       .o_sram_ren   (sram_ren),
 
       .i_wb_adr (wb_mem_adr[$clog2(memsize)-1:2]),
@@ -109,7 +149,6 @@ module serving
    servile
      #(.reset_pc (32'h0000_0000),
        .reset_strategy (RESET_STRATEGY),
-       .rf_width (rf_width),
        .sim (sim),
        .with_csr (WITH_CSR))
    servile
